@@ -9,6 +9,7 @@ export type EnhanceSettings = {
   brightness: number
   contrast: number
   gamma: number
+  saturation: number
 }
 
 export const gentleEnhance: EnhanceSettings = {
@@ -20,6 +21,9 @@ export const gentleEnhance: EnhanceSettings = {
   brightness: 0.03,
   contrast: 1.12,
   gamma: 0.92,
+  // Stapeln und der leichte Auto-Schliff ziehen die Farbe Richtung Grau.
+  // 1,25 holt ein blasses Gelb zurück, ohne Jupiter-Bänder zu übersteuern.
+  saturation: 1.25,
 }
 
 function atrous(src: Float32Array, w: number, h: number, step: number): Float32Array {
@@ -75,14 +79,27 @@ export function enhanceImage(rgb: Float32Array, w: number, h: number, settings: 
 
   const out = new Float32Array(rgb.length)
   const gamma = Math.max(0.05, settings.gamma)
+  const saturation = Number.isFinite(settings.saturation) ? settings.saturation : 1
   for (let i = 0; i < y.length; i++) {
     const p = i * 3
-    for (let c = 0; c < 3; c++) {
-      let value = (rgb[p + c] ?? 0) + (delta[i] ?? 0)
-      value = (value - 0.5) * settings.contrast + 0.5 + settings.brightness
-      value = Math.min(1, Math.max(0, value))
-      out[p + c] = Math.pow(value, gamma)
+    let r = (rgb[p] ?? 0) + (delta[i] ?? 0)
+    let g = (rgb[p + 1] ?? 0) + (delta[i] ?? 0)
+    let b = (rgb[p + 2] ?? 0) + (delta[i] ?? 0)
+    r = (r - 0.5) * settings.contrast + 0.5 + settings.brightness
+    g = (g - 0.5) * settings.contrast + 0.5 + settings.brightness
+    b = (b - 0.5) * settings.contrast + 0.5 + settings.brightness
+    r = Math.pow(Math.min(1, Math.max(0, r)), gamma)
+    g = Math.pow(Math.min(1, Math.max(0, g)), gamma)
+    b = Math.pow(Math.min(1, Math.max(0, b)), gamma)
+    if (saturation !== 1) {
+      const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b
+      r = Math.min(1, Math.max(0, luma + saturation * (r - luma)))
+      g = Math.min(1, Math.max(0, luma + saturation * (g - luma)))
+      b = Math.min(1, Math.max(0, luma + saturation * (b - luma)))
     }
+    out[p] = r
+    out[p + 1] = g
+    out[p + 2] = b
   }
   return out
 }

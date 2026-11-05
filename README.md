@@ -13,7 +13,7 @@ Das Programm ist eigenständig. Es orientiert sich an der Idee bekannter Lucky-I
 3. **Schärfe.** Jedes Bild bekommt die Varianz des Laplace-Filters, gemessen auf einer Graustufe nach einem leichten Weichzeichner. Der Regler behält die besten Prozent. Messingfarbene Balken bleiben, olivfarbene fallen weg.
 4. **Deckung.** Eine globale Verschiebung wird per Phasenkorrelation (FFT, mit Subpixel) bestimmt. Bei „Planet“ wird die Scheibe vorher über den Schwerpunkt zentriert. „Mittel der besten“ bildet aus den schärfsten, bereits grob ausgerichteten Bildern eine Referenz und richtet danach erneut aus. Lokale Punkte legen ein Raster über das Motiv; jede Kachel bekommt eine eigene Verschiebung, und die Verschiebungen gehen mit Abstand gewichtet ineinander über.
 5. **Stapel.** Mittelwert oder Sigma-Clipping in Fließkomma, Farbe bleibt erhalten. Bilder mit zu schwacher Korrelation werden ausgelassen.
-6. **Schliff.** Wavelet-artige Schärfung in drei Skalen, Unscharfmaskierung, Helligkeit, Kontrast und Gamma. Die Vorschau folgt den Reglern. „Schärfstes Bild“ und „Stapel“ lassen sich direkt vergleichen.
+6. **Schliff.** Wavelet-artige Schärfung in drei Skalen, Unscharfmaskierung, Helligkeit, Kontrast, Gamma und Sättigung. Die Vorschau folgt den Reglern. „Schärfstes Bild“ und „Stapel“ lassen sich direkt vergleichen.
 7. **Sichern.** PNG, unkomprimiertes 16-bit-RGB-TIFF, oder Teilen über die Web Share API.
 
 Neben jedem Bedienelement sitzt ein kleines **i**. Es öffnet eine kurze Erklärung. „Verstanden“, Escape oder ein Tipp daneben schließt sie. Der Knopf bleibt und lässt sich jederzeit wieder öffnen.

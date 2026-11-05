@@ -927,6 +927,15 @@ export default function App() {
             <Field label="Gamma" info={help.gamma} value={deNumber(enhance.gamma, 2)}>
               <Slider min={0.4} max={2.2} step={0.01} value={[enhance.gamma]} onValueChange={(value) => setEnhance({ ...enhance, gamma: value[0] ?? 1 })} />
             </Field>
+            <Field label="Sättigung" info={help.saettigung} value={deNumber(enhance.saturation, 2)}>
+              <Slider
+                min={0}
+                max={2}
+                step={0.01}
+                value={[enhance.saturation]}
+                onValueChange={(value) => setEnhance({ ...enhance, saturation: value[0] ?? 1 })}
+              />
+            </Field>
             <div className="grid grid-cols-2 gap-2">
               <div className="flex items-center gap-1">
                 <Button className="w-auto min-w-0 flex-1" onClick={() => void exportPng()} disabled={!preview}>
