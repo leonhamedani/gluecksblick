@@ -35,6 +35,9 @@ export const VIDEO_DECODE_MESSAGE =
 export const NO_PLANET_MESSAGE =
   'Kein Bild zeigt den Planeten vollständig. Er liegt am Rand, ist zu klein oder das Bild ist schwarz. Verschiebe Anfang und Ende, oder wähle „Gleich groß“.'
 
+export const READ_FAILURE_MESSAGE =
+  'Kein Bild konnte gelesen werden. Der Film ließ sich nicht Bild für Bild öffnen. Tipp: als H.264/SDR exportieren oder Einzelbilder als JPEG laden.'
+
 export const WEAK_ALIGN_MESSAGE =
   'Zu wenige Bilder lassen sich zur Deckung bringen. Bilder ohne sichere Deckung werden nicht trotzdem gestapelt.'
 
@@ -291,6 +294,26 @@ export function chooseAcross(groups: PlanetSample[][], mode: TrackMode): TrackPl
   const plan = chooseTrack(flat, mode)
   if (!plan) return null
   return { ...plan, normalized: true }
+}
+
+/**
+ * Map flat indexes from chooseAcross back onto each file.
+ * The running offset moves only after the lookup, otherwise every index misses.
+ */
+export function keptByFile<T>(groups: readonly (readonly T[])[], kept: readonly number[]): T[][] {
+  const chosen: T[][] = []
+  let offset = 0
+  for (const group of groups) {
+    const base = offset
+    offset += group.length
+    chosen.push(
+      kept
+        .filter((index) => index >= base && index < offset)
+        .map((index) => group[index - base])
+        .filter((sample): sample is T => sample != null),
+    )
+  }
+  return chosen
 }
 
 export function cropSidePixels(native: PlanetSample, plan: TrackPlan): number {

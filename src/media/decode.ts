@@ -8,7 +8,9 @@ import {
   NORMAL,
   innerSpan,
   inspectPlanet,
+  keptByFile,
   NO_PLANET_MESSAGE,
+  READ_FAILURE_MESSAGE,
   sampleTimes,
   squareCrop,
   VIDEO_DECODE_MESSAGE,
@@ -254,6 +256,15 @@ async function seekTo(video: HTMLVideoElement, time: number, signal: AbortSignal
   }
 }
 
+async function primeVideo(video: HTMLVideoElement) {
+  try {
+    await video.play()
+    video.pause()
+  } catch {
+    /* Stumm geschaltetes Suchen klappt oft auch ohne Wiedergabe. */
+  }
+}
+
 function attachVideo(file: File): Promise<{ video: HTMLVideoElement; close: () => void }> {
   const url = URL.createObjectURL(file)
   const video = document.createElement('video')
@@ -325,12 +336,7 @@ async function measurePlanet(video: HTMLVideoElement, srcW: number, srcH: number
 export async function loadVideo(file: File, limits: DecodeLimits, hooks: Hooks): Promise<LoadedSource> {
   const { video, close } = await attachVideo(file)
   try {
-    try {
-      await video.play()
-      video.pause()
-    } catch {
-      /* Stumm geschaltetes Suchen klappt oft auch ohne Wiedergabe. */
-    }
+    await primeVideo(video)
     const srcW = video.videoWidth
     const srcH = video.videoHeight
     const { t0, t1 } = trimWindow(video.duration, limits)
@@ -673,6 +679,7 @@ async function scanVideoFile(
 ): Promise<{ samples: PlanetSample[]; srcW: number; srcH: number }> {
   const { video, close } = await attachVideo(file)
   try {
+    await primeVideo(video)
     const srcW = video.videoWidth
     const srcH = video.videoHeight
     const { t0, t1 } = trimWindow(video.duration, limits)
@@ -688,7 +695,8 @@ async function scanVideoFile(
       }
       samples.push(await measurePlanet(video, srcW, srcH, time))
     }
-    if (samples.length > 0 && samples.every((sample) => sample.dark)) {
+    if (samples.length === 0) throw new Error(READ_FAILURE_MESSAGE)
+    if (samples.every((sample) => sample.dark)) {
       throw new Error(`${VIDEO_DECODE_MESSAGE} Die Bilder kamen schwarz an.`)
     }
     return { samples, srcW, srcH }
@@ -745,7 +753,7 @@ export async function loadMany(entries: BatchEntry[], limits: DecodeLimits, hook
     }
   }
   if (scanned.length === 0) {
-    throw new Error(failures[0] ?? NO_PLANET_MESSAGE)
+    throw new Error(failures[0] ?? READ_FAILURE_MESSAGE)
   }
 
   const out = evenSide(limits.longEdge)
@@ -755,25 +763,32 @@ export async function loadMany(entries: BatchEntry[], limits: DecodeLimits, hook
   let th = 0
 
   if (limits.motive === 'planet') {
-    const plan = chooseAcross(scanned.map((item) => item.samples), limits.track)
+    const groups = scanned.map((item) => item.samples)
+    if (groups.every((group) => group.length === 0)) {
+      throw new Error(failures[0] ?? READ_FAILURE_MESSAGE)
+    }
+    const plan = chooseAcross(groups, limits.track)
     if (!plan) throw new Error(failures.length ? `${NO_PLANET_MESSAGE} ${failures.join(' ')}` : NO_PLANET_MESSAGE)
-    let offset = 0
-    for (const item of scanned) {
-      const local = plan.kept.filter((kept) => kept >= offset && kept < offset + item.samples.length)
-      offset += item.samples.length
-      const chosen = local
-        .map((index) => item.samples[index - offset])
-        .filter((sample): sample is PlanetSample => Boolean(sample))
-      if (chosen.length === 0) continue
+    const picked = keptByFile(groups, plan.kept)
+    let tried = 0
+    let unread = 0
+    for (let index = 0; index < scanned.length; index++) {
+      const item = scanned[index]
+      const chosen = picked[index] ?? []
+      if (!item || chosen.length === 0) continue
+      tried += 1
       const taken = await extractPlanet(item, chosen, plan, limits, out, hooks)
-      for (const piece of taken) {
+      if (taken.unread) unread += 1
+      for (const piece of taken.pieces) {
         frames.push({ gray: piece.gray, thumb: piece.thumb })
         recipes.push(piece.recipe)
         tw = piece.tw
         th = piece.th
       }
     }
-    if (frames.length < 2) throw new Error(NO_PLANET_MESSAGE)
+    if (frames.length < 2) {
+      throw new Error(frames.length === 0 && tried > 0 && unread === tried ? READ_FAILURE_MESSAGE : NO_PLANET_MESSAGE)
+    }
     const origins = countOrigins(recipes)
     const note = `${describeSources(origins, failures)} ${plan.note}`
     return finishMany(frames, out, out, tw, th, note, origins, recipes)
@@ -788,7 +803,7 @@ export async function loadMany(entries: BatchEntry[], limits: DecodeLimits, hook
       th = piece.th
     }
   }
-  if (frames.length < 2) throw new Error(failures[0] ?? 'Zu wenige Bilder.')
+  if (frames.length < 2) throw new Error(frames.length === 0 ? (failures[0] ?? READ_FAILURE_MESSAGE) : (failures[0] ?? 'Zu wenige Bilder.'))
   const origins = countOrigins(recipes)
   return finishMany(frames, out, out, tw, th, describeSources(origins, failures), origins, recipes)
 }
@@ -805,6 +820,8 @@ function countOrigins(recipes: Recipe[]): { name: string; count: number }[] {
 
 type Taken = { gray: Uint8Array; thumb: Uint8ClampedArray; tw: number; th: number; recipe: Recipe }
 
+type TakenBatch = { pieces: Taken[]; unread: boolean }
+
 async function extractPlanet(
   item: { entry: BatchEntry; samples: PlanetSample[]; srcW: number; srcH: number },
   kept: PlanetSample[],
@@ -812,35 +829,40 @@ async function extractPlanet(
   limits: DecodeLimits,
   out: number,
   hooks: Hooks,
-): Promise<Taken[]> {
+): Promise<TakenBatch> {
   if (item.entry.kind === 'bild') {
     const bitmap = await createImageBitmap(item.entry.file)
     try {
       const sample = kept[0]
-      if (!sample || sample.missing || sample.clipped) return []
+      if (!sample || sample.missing || sample.clipped) return { pieces: [], unread: false }
       const side = cropSidePixels(sample, plan)
       const box = squareCrop(sample.cx, sample.cy, side, sample.frameW, sample.frameH)
-      if (!box) return []
+      if (!box) return { pieces: [], unread: false }
       const rgba = paintCrop(bitmap, box.sx, box.sy, box.side, out)
       const thumb = thumbOf(out, out)
-      return [{
-        gray: rgbaToGrayU8(rgba),
-        thumb: thumb.thumb,
-        tw: thumb.tw,
-        th: thumb.th,
-        recipe: { file: item.entry.file, kind: 'bild', name: item.entry.file.name, time: 0, sx: box.sx, sy: box.sy, sw: box.side, sh: box.side },
-      }]
+      return {
+        unread: false,
+        pieces: [{
+          gray: rgbaToGrayU8(rgba),
+          thumb: thumb.thumb,
+          tw: thumb.tw,
+          th: thumb.th,
+          recipe: { file: item.entry.file, kind: 'bild', name: item.entry.file.name, time: 0, sx: box.sx, sy: box.sy, sw: box.side, sh: box.side },
+        }],
+      }
     } finally {
       bitmap.close()
     }
   }
   const times = kept.map((sample) => sample.time)
-  if (times.length === 0) return []
+  if (times.length === 0) return { pieces: [], unread: false }
   const window = innerSpan(Math.min(...times), Math.max(...times))
   const probes = sampleTimes(window.t0, window.t1, limits.maxFrames)
   const { video, close } = await attachVideo(item.entry.file)
   const taken: Taken[] = []
+  let sawFrame = false
   try {
+    await primeVideo(video)
     for (const time of probes) {
       throwIfAborted(hooks.signal)
       hooks.onProgress(0.35, `${item.entry.file.name} wird ausgeschnitten`)
@@ -850,6 +872,7 @@ async function extractPlanet(
         if (error instanceof DOMException && error.name === 'AbortError') throw error
         continue
       }
+      sawFrame = true
       const seen = await measurePlanet(video, item.srcW, item.srcH, time)
       if (seen.missing || seen.clipped) continue
       const unit = Math.min(seen.frameW, seen.frameH)
@@ -880,7 +903,7 @@ async function extractPlanet(
   } finally {
     close()
   }
-  return taken
+  return { pieces: taken, unread: probes.length > 0 && !sawFrame }
 }
 
 async function extractSurface(
@@ -910,6 +933,7 @@ async function extractSurface(
   const { video, close } = await attachVideo(item.entry.file)
   const taken: Taken[] = []
   try {
+    await primeVideo(video)
     const { t0, t1 } = trimWindow(video.duration, limits)
     const times = sampleTimes(t0, t1, limits.maxFrames)
     const fit = fittedSize(item.srcW, item.srcH, limits.longEdge, limits.crop)
@@ -972,6 +996,7 @@ function finishMany(
       if (!current || current.file !== recipe.file) {
         current?.close()
         current = { file: recipe.file, ...(await attachVideo(recipe.file)) }
+        await primeVideo(current.video)
       }
       await seekTo(current.video, recipe.time, signal)
       return paintRect(current.video, recipe.sx, recipe.sy, recipe.sw, recipe.sh, w, h)

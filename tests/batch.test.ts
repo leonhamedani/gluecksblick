@@ -6,6 +6,9 @@ import {
   cropSidePixels,
   describeSources,
   inspectPlanet,
+  keptByFile,
+  NO_PLANET_MESSAGE,
+  READ_FAILURE_MESSAGE,
   resampleCrop,
   squareCrop,
 } from '../src/lib/track.ts'
@@ -75,6 +78,31 @@ describe('Mehrere Aufnahmen', () => {
     const refScore = score(luminanceOfRgb(Float32Array.from({ length: out * out * 3 }, (_, index) => (reference[(index / 3) * 4 + (index % 3)] ?? 0) / 255)))
     void refScore
     expect(score(stacked)).toBeGreaterThan(score(mixed) * 1.3)
+  })
+
+  it('lässt jede Datei nach chooseAcross mindestens ein Bild behalten', () => {
+    const files = [
+      [0, 1, 2, 3].map((index) => diskImage(160, 160, 78 + index, 80, 16)),
+      [0, 1, 2, 3].map((index) => diskImage(160, 160, 90 - index, 72, 15)),
+      [0, 1, 2].map((index) => diskImage(160, 160, 70 + index, 90, 17)),
+    ]
+    const groups = files.map((frames) => frames.map((frame, index) => seen(frame, 160, 160, index)))
+    const plan = chooseAcross(groups, 'match')
+    expect(plan).not.toBeNull()
+    const picked = keptByFile(groups, plan!.kept)
+    expect(picked).toHaveLength(3)
+    for (const rows of picked) expect(rows.length).toBeGreaterThan(0)
+    expect(picked.reduce((sum, rows) => sum + rows.length, 0)).toBe(plan!.kept.length)
+
+    let offset = 0
+    const broken = groups.map((group) => {
+      const local = plan!.kept.filter((index) => index >= offset && index < offset + group.length)
+      offset += group.length
+      return local.map((index) => group[index - offset]).filter(Boolean)
+    })
+    expect(broken.every((rows) => rows.length === 0)).toBe(true)
+    expect(READ_FAILURE_MESSAGE).not.toBe(NO_PLANET_MESSAGE)
+    expect(READ_FAILURE_MESSAGE).toMatch(/gelesen/)
   })
 
   it('nennt die Bilder je Datei', () => {
