@@ -10,7 +10,7 @@ export const help = {
   motiv:
     'Planet sucht eine helle Scheibe vor dunklem Himmel und schneidet sie frei. Mond oder Sonne füllt das Bild, deshalb bleibt ein Ausschnitt in der Mitte.',
   verfolgen:
-    'Großer Zoom behält nur die Stelle, an der die Scheibe am größten und etwa gleich groß ist. Gleich groß zieht nahe und weite Aufnahmen auf dieselbe Scheibengröße. Alles nimmt jede vollständige Scheibe, auch wenn die Größe schwankt.',
+    'Großer Zoom behält nur den einen Abschnitt, in dem die Scheibe am größten und ähnlich groß ist. Bei mehreren Videos bleibt oft nur ein einziges übrig, die anderen werden absichtlich ausgelassen. Gleich groß nimmt brauchbare Bilder aus allen Videos und zieht sie auf dieselbe Scheibengröße, am besten für mehrere Clips. Alles nimmt vollständige Scheiben aus allen Videos, auch wenn die Größe unterschiedlich ist.',
   maxFrames:
     'So viele Bilder liest das Programm pro Video. Mehr kann feiner werden, dauert aber länger und braucht mehr Speicher.',
   longEdge:

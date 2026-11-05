@@ -619,7 +619,7 @@ export default function App() {
             </Field>
             {motive === 'planet' ? (
               <p className="text-sm leading-relaxed text-muted">
-                Der Planet wird in jeder Datei gesucht und mittig ausgeschnitten. „Gleich groß“ legt eine nahe und eine weite Aufnahme auf dieselbe Scheibengröße. „Großer Zoom“ behält nur die größte ähnliche Stufe.
+                Der Planet wird in jeder Datei gesucht und mittig ausgeschnitten. „Großer Zoom“ behält nur den größten ähnlichen Abschnitt, oft aus einem einzigen Video; die anderen Dateien fallen dann absichtlich weg. „Gleich groß“ nimmt brauchbare Bilder aus allen Videos und zieht sie auf dieselbe Scheibengröße. „Alles“ nimmt jede vollständige Scheibe aus allen Videos, auch wenn die Größen verschieden sind.
               </p>
             ) : (
               <Field label="Ausschnitt in der Mitte" info={help.crop} value={`${deInt(crop)} %`}>
