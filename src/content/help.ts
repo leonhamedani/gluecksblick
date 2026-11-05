@@ -63,6 +63,8 @@ export const help = {
     'Zieht helle und dunkle Stellen auseinander. Mehr lässt das Motiv kräftiger vor dem Himmel stehen.',
   gamma:
     'Biegt die Mitteltöne. Unter 1 werden Schatten heller, über 1 wird das Bild insgesamt dunkler.',
+  saettigung:
+    'Macht die Farben kräftiger oder grauer, ohne die Helligkeit zu ändern. Etwas über 1 holt das blasse Gelb nach dem Stapeln zurück.',
   png: 'Speichert das sichtbare Bild als PNG, ein übliches Format für Fotos und zum Teilen.',
   tiff: 'Speichert mehr Helligkeitsstufen fürs spätere Bearbeiten. Nicht jede App öffnet so ein 16-bit-TIFF.',
   teilen: 'Öffnet das Teilen-Menü des Telefons, zum Beispiel für Nachrichten oder die Fotos-App.',
